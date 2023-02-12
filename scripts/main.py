@@ -13,7 +13,6 @@ def main():
     y = df[['hate_speech_score', 'target_race', 'target_religion', 'target_gender']]
     y[['target_race', 'target_religion', 'target_gender']] = y[['target_race', 'target_religion', 'target_gender']].astype(int)
 
-    print(X.head())
     return None
 
 if __name__=="__main__":
