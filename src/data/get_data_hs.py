@@ -35,9 +35,9 @@ def preprocess_dataset(df):
     Function to preprocess hate speech dataset for classification task.
     Takes as input the raw dataframe.
     Outputs a new dataframe, with following columns:
-    comment_id, text, hate_speech_score and class.
+    comment_id, text, hate_speech_score and label.
 
-    Class has 8 possible values:
+    Label has 8 possible values:
     0: comment is not hateful
     1: comment is hateful (target_race)
     2: comment is hateful (target_religion)
@@ -63,12 +63,12 @@ def preprocess_dataset(df):
         hs_score = comment_df['hate_speech_score'].iloc[0]
         text = comment_df['text'].iloc[0]
         
-        # return class 0 if comment is not hateful
+        # return label 0 if comment is not hateful
         if hs_score <= 0.5:
             dataframe_list.append(pd.DataFrame({'comment_id': [id_comment], 'text': [text],
-                                                'hate_speech_score': [hs_score], 'class': [0]}))
+                                                'hate_speech_score': [hs_score], 'label': [0]}))
         
-        # otherwise determine the class of the comment
+        # otherwise determine the label of the comment
         else:
             # count amount of times a comment has been annotated as targetting a specific group
             list_target_counts = [comment_df['target_race'].sum(), comment_df['target_religion'].sum(),
@@ -78,9 +78,9 @@ def preprocess_dataset(df):
             
             # find majority voting (pick at random in case of tie)
             index_max_count = np.random.choice(np.where(list_target_counts == np.max(list_target_counts))[0])
-            # return class of majority voting
+            # return label of majority voting
             dataframe_list.append(pd.DataFrame({'comment_id': [id_comment], 'text': [text],
-                                                'hate_speech_score': [hs_score], 'class': [index_max_count+1]}))
+                                                'hate_speech_score': [hs_score], 'label': [index_max_count+1]}))
             
     return pd.concat(dataframe_list, ignore_index=True)
 
