@@ -16,7 +16,7 @@ path_dir = os.path.abspath(os.path.join(__file__,"../../.."))
 path = os.path.join(path_dir, "data")
 os.makedirs(path, exist_ok=True)
 
-df.to_csv(path + "/hate_speech_raw.csv", index = False)
+# df.to_csv(path + "/hate_speech_raw.csv", index = False)
 
 
 
