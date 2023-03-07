@@ -5,9 +5,7 @@ import os
 import pickle
 
 # load dataset
-path_dir = os.path.abspath(os.path.join(__file__,"../../../.."))
-
-df = pd.read_csv(path_dir + "/data/hate_speech_preprocessed.csv")
+df = pd.read_csv("../../../data/hate_speech_preprocessed.csv")
 
 # load tokenizer
 bert_model_name = "bert-base-cased"
