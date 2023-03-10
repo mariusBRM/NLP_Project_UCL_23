@@ -17,13 +17,15 @@ def get_sentence_embeddings(model,list_input_ids,list_attention_mask):
     hidden_states = outputs[2]
     # hidden states shape [layers, batches, tokens, hidden units]
     # Number of layers: 13   (initial embeddings + 12 BERT layers)
-    # Number of batches: number of comments
+    # batches: size of batch = number of comments
     # Number of tokens: max length of tokenized comments
     # Number of hidden units: 768   
 
+    # take second to last hidden layer
     # shape [batches, tokens, 768]
     token_vecs = hidden_states[-2]
 
+    # average on tokens
     # shape [batches, 768]
     sentence_embeddings = torch.mean(token_vecs, dim=1)
     
