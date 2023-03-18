@@ -87,7 +87,7 @@ class ToxicCommentsDataset:#(Dataset):
 
 # %%
 class ToxicCommentDataModule(pl.LightningDataModule):
-    def __init__(self, train_df, test_df, tokenizer, batch_size=15, max_len=128):
+    def __init__(self, train_df, test_df, tokenizer, Classes, batch_size=8, max_len=128):
         super().__init__()
         
         self.train_df = train_df
@@ -156,7 +156,24 @@ class ToxicCommentClassifier(pl.LightningModule):
         loss, outputs = self(input_ids, attention_mask, labels)
         self.log("test_loss", loss, prog_bar=True, logger=True)
         return loss
+    
+    def training_epoch_end(self, outputs):
+        labels = []
+        predictions = []
+        
+        for output in outputs:
+            for out_labels in output["labels"].detach().cpu():
+                labels.append(out_labels)
 
+            for out_predictions in output["predictions"].detach().cpu():
+                predictions.append(out_predictions)
+        print("#####")
+        labels = torch.stack(labels).int()
+        predictions = torch.stack(predictions)
+
+        for i, name in enumerate(Classes):
+            roc_score = torchmetrics.AUROC(predictions[:, i], labels[:, i])
+            self.logger.experiment.add_scalar(f"{name}_roc_auc/Train", roc_score, self.current_epoch)
     
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=2e-5)
