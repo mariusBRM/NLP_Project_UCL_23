@@ -29,7 +29,7 @@ class Net(nn.Module):
         self.fc1 = nn.Linear(len_input_layer,568)
         self.fc2 = nn.Linear(568, 366)
         self.fc3 = nn.Linear(366, 124)
-        self.fc4 = nn.Linear(124, len_output_layer)
+        self.fc4 = nn.Linear(124,len_output_layer)
         self.apply_dropout = apply_dropout
         self.dropout = nn.Dropout(p=0.5)
 
@@ -44,6 +44,8 @@ class Net(nn.Module):
         if self.apply_dropout:
             x = self.dropout(x)
         x = F.relu(self.fc4(x))
+        
+        
         return x
     
 
@@ -81,6 +83,8 @@ def training_model(nb_epochs, train_dataloader, val_dataloader, model, optimizer
     This function trains the model on training data
     """
 
+    best_val_loss = np.inf
+
     for epoch in range(nb_epochs):
 
         model.train()
@@ -101,11 +105,11 @@ def training_model(nb_epochs, train_dataloader, val_dataloader, model, optimizer
             print('\rEpoch: {}\tbatch: {}\tLoss =  {:.3f}'.format(epoch, j, loss), end="")
 
         running_loss = running_loss / len(train_dataloader)
-        
+        print("\n")
         # validation
         model.eval()
         with torch.no_grad():
-            val_loss, val_acc, val_macro_f1 = compute_metrics(dataloader=val_dataloader,network=model,criterion=criterion)
+            val_loss, val_acc, val_macro_f1 = compute_metrics(val_dataloader,model,criterion)
             print("Epoch {}: train CE loss = {:.5f}".format(epoch+1, running_loss),
                       '|| Valid: CE loss = {:.5f}   acc = {:.2f}%   macro-F1 = {:.4f}'.format(val_loss, val_acc, val_macro_f1))
 
@@ -116,20 +120,29 @@ def training_model(nb_epochs, train_dataloader, val_dataloader, model, optimizer
             pat = 0
         else:
             pat += 1
+            print("pat ", pat)
             if pat == patience:
                 print("Early Stopping: Validation Loss did not decrease for", patience, "epochs.")
                 break
-
+        
+        print("\n")
     torch.save(dict_model, 'classification_no_fine_tuning.pt')
 
 
 
 if __name__ == '__main__':
 
+    
     #Preprocessing of the data
     df = pd.read_csv("../../../data/hs_sentence_embeddings_no_fine_tuning.csv")
+
+    indexes_label_0 = df[df["labels"] == 5].index
+    indexes_label_0_schuffled = indexes_label_0[torch.randperm(len(indexes_label_0))]
+    df = df.drop(index = indexes_label_0_schuffled[:15000])
+
     all_embeddings = df["embedding"].apply(lambda x : preprocessing(x)) 
     all_labels = df["labels"].apply(lambda x : preprocessing(x)) 
+    
     assert all_embeddings.shape[0] == all_labels.shape[0]
 
     all_embeddings = all_embeddings.to_list()
@@ -172,7 +185,8 @@ if __name__ == '__main__':
     nb_epochs = 500
     patience = 10
     model = Net(768,8,apply_dropout=False)
-    criterion = nn.CrossEntropyLoss()
+    weights = 1 / (torch.sqrt(torch.unique(torch.tensor(all_labels), return_counts = True)[1]))
+    criterion = nn.CrossEntropyLoss(weight = weights)
     optimizer = optim.SGD(model.parameters(), lr=0.001)
     # optim.Adam(model.parameters(), lr=0.001)
     # optim.AdamW(model.parameters(), lr=0.001)
