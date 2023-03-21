@@ -21,6 +21,7 @@ from sklearn.model_selection import train_test_split
 import transformers
 # In[30]:
 
+BERT_MODEL_NAME = "bert-base-cased"
 
 dataset_hugging_face = load_dataset("ucberkeley-dlab/measuring-hate-speech", 'binary')
 df_train = dataset_hugging_face['train'].to_pandas()
@@ -45,13 +46,13 @@ class ToxicCommentsDataset(Dataset):
         self.Classes = Classes
         self.max_len = max_len
 
-        
+
     def __len__(self):
         return len(self.data)
-    
+
     def __getitem__(self, index: int):
         single_row = self.data.iloc[index]
-        
+
         comment = single_row['text']
         labels = single_row[Classes]
         labels[['target_race', 'target_religion', 'target_gender']] = labels[['target_race', 'target_religion', 'target_gender']].astype(int)
@@ -80,24 +81,24 @@ Classes = ['hate_speech_score', 'target_race', 'target_religion', 'target_gender
 class ToxicCommentDataModule(pl.LightningDataModule):
     def __init__(self, train_df, test_df, tokenizer, Classes, batch_size=8, max_len=128):
         super().__init__()
-        
+
         self.train_df = train_df
         self.test_df = test_df
         self.tokenizer = tokenizer
         self.batch_size = batch_size
         self.max_len = max_len
         self.Classes = Classes
-        
+
     def setup(self, stage=None):
         self.train_dataset = ToxicCommentsDataset(self.train_df, self.tokenizer,self.Classes, self.max_len)
         self.test_dataset = ToxicCommentsDataset(self.test_df, self.tokenizer, self.Classes, self.max_len)
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset,batch_size=self.batch_size,shuffle=True,num_workers=4)
-    
+
     def val_dataloader(self):
-        return DataLoader(self.test_dataset,batch_size=1,num_workers=4)    
-    
+        return DataLoader(self.test_dataset,batch_size=1,num_workers=4)
+
     def test_dataloader(self):
         return DataLoader(self.test_dataset,batch_size=1,num_workers=4)
 
@@ -123,7 +124,7 @@ class ToxicCommentClassifier(pl.LightningModule):
         if labels is not None:
             loss = self.criterion(output, labels)
         return loss, output
-    
+
     def training_step(self, batch, batch_idx):
         input_ids = batch["input_ids"]
         attention_mask = batch["attention_mask"]
@@ -143,7 +144,7 @@ class ToxicCommentClassifier(pl.LightningModule):
         loss, outputs = self(input_ids, attention_mask, labels)
         self.log("val_loss", loss, prog_bar=True, logger=True)
         return loss
-    
+
     def test_step(self, batch, batch_idx):
         input_ids = batch["input_ids"]
         attention_mask = batch["attention_mask"]
@@ -151,11 +152,11 @@ class ToxicCommentClassifier(pl.LightningModule):
         loss, outputs = self(input_ids, attention_mask, labels)
         self.log("test_loss", loss, prog_bar=True, logger=True)
         return loss
-    
+
     def training_epoch_end(self, outputs):
         labels = []
         predictions = []
-        
+
         for output in outputs:
             for out_labels in output["labels"].detach().cpu():
                 labels.append(out_labels)
@@ -169,7 +170,7 @@ class ToxicCommentClassifier(pl.LightningModule):
         for i, name in enumerate(Classes):
             roc_score = torchmetrics.AUROC(predictions[:, i], labels[:, i])
             self.logger.experiment.add_scalar(f"{name}_roc_auc/Train", roc_score, self.current_epoch)
-    
+
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=2e-5)
         warmup_steps = self.steps_per_epoch // 3
@@ -179,5 +180,3 @@ class ToxicCommentClassifier(pl.LightningModule):
 
 
 # In[92]:
-
-
