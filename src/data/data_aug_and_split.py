@@ -75,3 +75,4 @@ new_train_df = pd.concat([train_df, aug_train_df], ignore_index=True).sample(fra
 new_train_df.to_csv("../../data/train_data.csv", index=False)
 val_df.to_csv("../../data/val_data.csv", index=False)
 test_df.to_csv("../../data/test_data.csv", index=False)
+aug_train_df.to_csv("../../data/aug_data.csv", index=False)
