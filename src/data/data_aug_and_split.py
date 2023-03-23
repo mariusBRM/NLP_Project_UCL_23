@@ -1,6 +1,6 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
-import deepl
+from google.cloud import translate_v2 as translate
 
 # load dataset
 df = pd.read_csv("../../data/hate_speech_preprocessed.csv")
@@ -37,8 +37,7 @@ test_df = pd.concat(test_list, ignore_index=True).sample(frac=1)
 
 
 # data aug: translate train data into multiple languages, depending on class frequency
-auth_key = "d0fe670f-0059-2b4d-c3d5-b886c639c6fe:fx"  # Replace with your key
-translator = deepl.Translator(auth_key)
+translate_client = translate.Client()
 
 aug_train_list = []
 for l, d in enumerate(train_list):
@@ -60,15 +59,17 @@ for l, d in enumerate(train_list):
     for i, row in d.iterrows():
 
         for lang in language:
-            result = translator.translate_text(row['text'], target_lang=lang)
-            result_back = translator.translate_text(str(result), target_lang="EN-GB")
+            result = translate_client.translate(row['text'], target_language=lang, format_='text')
+            result_back = translate_client.translate(result["translatedText"], target_language='EN', format_='text')
             aug_train_list.append({'comment_id': row['comment_id'],
-                                   'text': result_back,
+                                   'text': result_back["translatedText"],
                                    'hate_speech_score': row['hate_speech_score'],
-                                   'label': row['label']})
+                                   'label': row['label'],
+                                    'trad':lang})
 
 
 aug_train_df = pd.DataFrame(aug_train_list)
+train_df['trad'] = 'original'
 new_train_df = pd.concat([train_df, aug_train_df], ignore_index=True).sample(frac=1)
 
 new_train_df.to_csv("../../data/train_data.csv", index=False)
