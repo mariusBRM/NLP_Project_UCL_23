@@ -4,11 +4,8 @@ import torch
 import os
 import pickle
 
-# load dataset
-df = pd.read_csv("../../../data/hate_speech_preprocessed.csv")
-
 # load tokenizer
-bert_model_name = "bert-base-cased"
+bert_model_name = "bert-base-uncased"
 tokenizer = BertTokenizer.from_pretrained(bert_model_name)
 
 def max_len(df):
@@ -24,21 +21,13 @@ def max_len(df):
 
     return max_len
 
-max_len = max_len(df)
 
-def tokenize_BERT(df, max_len):
-    '''
-    Function to return input_ids and attention masks from tokenization of BERT
-    '''
 
-    # store tokenized sentences and attention masks
+
+def get_inputs_ids_attention_masks(df, max_len):
+    
     inputs_id = []
     attention_masks = []
-
-    # to save what input corresponds to what text in case we need to make tests/check behaviour
-    id_comments = df['comment_id']
-    labels = torch.tensor(df['label'])
-
 
     for comment in df['text']:
         #   (1) Tokenize the sentence.
@@ -53,14 +42,61 @@ def tokenize_BERT(df, max_len):
                                              padding = 'max_length', #pad_to_max_length = True
                                              return_attention_mask = True,
                                              return_tensors = 'pt')
-
+    
         inputs_id.append(encoded_dict['input_ids'])
         attention_masks.append(encoded_dict['attention_mask']) # differentiates padding from non-padding tokens
-        
+
     # Convert to tensor
     input_ids = torch.cat(inputs_id, dim=0)
     attention_masks = torch.cat(attention_masks, dim=0)
 
-    return id_comments, input_ids, attention_masks, labels
+    return input_ids, attention_masks
 
-id_comments, input_ids, attention_masks, labels = tokenize_BERT(df, max_len)
+
+
+def tokenize_BERT():
+    '''
+    Function to return input_ids and attention masks from tokenization of BERT
+    '''
+
+    # load datasets
+    df_train = pd.read_csv("../../../data/train_data.csv")
+    df_val = pd.read_csv("../../../data/val_data.csv")
+    df_test = pd.read_csv("../../../data/test_data.csv")
+
+
+    #get max len
+    max_len_train = max_len(df_train)
+    max_len_val = max_len(df_val)
+    max_len_test = max_len(df_test)
+
+    max_len_ = max([max_len_train, max_len_val, max_len_test])
+
+
+
+    # to save what input corresponds to what text in case we need to make tests/check behaviour
+    id_comments_train = df_train['comment_id']
+    labels_train = torch.tensor(df_train['label'])
+
+    id_comments_val = df_val['comment_id']
+    labels_val = torch.tensor(df_val['label'])
+
+    id_comments_test = df_test['comment_id']
+    labels_test = torch.tensor(df_test['label'])
+
+    # store tokenized sentences and attention masks
+    inputs_id_train, attention_masks_train = get_inputs_ids_attention_masks(df_train, max_len_)
+
+    inputs_id_val, attention_masks_val = get_inputs_ids_attention_masks(df_val, max_len_)
+    
+    inputs_id_test, attention_masks_test = get_inputs_ids_attention_masks(df_test,max_len_)
+
+
+
+    train_data = (id_comments_train,inputs_id_train,attention_masks_train,labels_train)
+    val_data = (id_comments_val,inputs_id_val,attention_masks_val,labels_val)
+    test_data = (id_comments_test,inputs_id_test,attention_masks_test,labels_test)
+
+    return train_data, val_data, test_data
+
+train_data, val_data, test_data = tokenize_BERT()
