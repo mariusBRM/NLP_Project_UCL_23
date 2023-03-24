@@ -136,10 +136,7 @@ if __name__ == '__main__':
     #Preprocessing of the data
     df = pd.read_csv("../../../data/hs_sentence_embeddings_no_fine_tuning.csv")
 
-    indexes_label_0 = df[df["labels"] == 5].index
-    indexes_label_0_schuffled = indexes_label_0[torch.randperm(len(indexes_label_0))]
-    df = df.drop(index = indexes_label_0_schuffled[:15000])
-
+    
     all_embeddings = df["embedding"].apply(lambda x : preprocessing(x)) 
     all_labels = df["labels"].apply(lambda x : preprocessing(x)) 
     
