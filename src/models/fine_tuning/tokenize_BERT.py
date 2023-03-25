@@ -98,5 +98,3 @@ def tokenize_BERT():
     test_data = (id_comments_test,inputs_id_test,attention_masks_test,labels_test)
 
     return train_data, val_data, test_data
-
-train_data, val_data, test_data = tokenize_BERT()

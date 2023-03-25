@@ -1,10 +1,9 @@
-import pandas as pd
 import numpy as np
 import torch
-import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import transformers
 from sklearn.metrics import accuracy_score,f1_score
+from sklearn.utils.class_weight import compute_class_weight
 import pickle
 from tokenize_BERT import tokenize_BERT
 
@@ -31,8 +30,8 @@ def get_class(output):
     return l
 
 train_data, val_data, test_data = tokenize_BERT()
-all_labels = torch.cat((train_data[3], val_data[3], test_data[3]))
-WEIGHTS = 1 / (torch.sqrt(torch.unique(all_labels, return_counts = True)[1])).to('cuda')
+WEIGHTS = compute_class_weight(class_weight='balanced', classes=np.unique(train_data[3]), y=train_data[3].numpy())
+WEIGHTS = torch.tensor(WEIGHTS, dtype=torch.float).to('cuda')
 
 # Custom the data for our need
 class HateSpeechData(Dataset):
