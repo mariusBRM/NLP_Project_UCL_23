@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -140,7 +139,7 @@ def training_model(nb_epochs, train_dataloader, val_dataloader, patience):
     for epoch in range(nb_epochs):
             # dict containing the information
         report_epoch = {
-                'epoch': epoch,
+                'epoch': epoch+1,
                 'training_loss': 0.0,
                 'valid_loss':0.0,
                 'valid_accuracy':0.0,
@@ -168,7 +167,7 @@ def training_model(nb_epochs, train_dataloader, val_dataloader, patience):
             # add the loss to the running loss
             running_loss+=loss.item()
             
-            print('\rEpoch: {}\tbatch: {}\tLoss =  {:.3f}'.format(epoch, i, loss), end="")
+            print('\rEpoch: {}\tbatch: {}\tLoss =  {:.3f}'.format(epoch+1, i, loss), end="")
 
         running_loss = running_loss / len(train_dataloader)
         report_epoch['training_loss'] = running_loss
@@ -202,7 +201,7 @@ def training_model(nb_epochs, train_dataloader, val_dataloader, patience):
                 break
         
         # save model each epoch
-        torch.save(model.state_dict(), 'epoch'+epoch+'.pt')
+        torch.save(model.state_dict(), 'epoch'+str(epoch+1)+'.pt')
 
         print("\n")
         # add performances of the epoch to the overall summary
@@ -220,6 +219,6 @@ if __name__ == '__main__':
     valid_loader = data_loader(val_data, 4)
 
     # summary get all info about performance
-    summary = training_model(nb_epochs = 30, train_dataloader = train_loader, val_dataloader = valid_loader, patience = 10)
+    summary = training_model(nb_epochs = 20, train_dataloader = train_loader, val_dataloader = valid_loader, patience = 5)
     with open('summary.pickle', 'wb') as handle:
         pickle.dump(summary, handle, protocol=pickle.HIGHEST_PROTOCOL)
