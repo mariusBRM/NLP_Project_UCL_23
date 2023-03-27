@@ -3,7 +3,6 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import transformers
 from sklearn.metrics import accuracy_score,f1_score
-from sklearn.utils.class_weight import compute_class_weight
 import pickle
 from tokenize_BERT import tokenize_BERT
 
@@ -30,8 +29,7 @@ def get_class(output):
     return l
 
 train_data, val_data, test_data = tokenize_BERT()
-WEIGHTS = compute_class_weight(class_weight='balanced', classes=np.unique(train_data[3]), y=train_data[3].numpy())
-WEIGHTS = torch.tensor(WEIGHTS, dtype=torch.float).to('cuda')
+WEIGHTS = 1 / (torch.sqrt(torch.unique(train_data[3], return_counts = True)[1])).to('cuda')
 
 # Custom the data for our need
 class HateSpeechData(Dataset):
@@ -210,14 +208,11 @@ def training_model(nb_epochs, train_dataloader, val_dataloader, patience):
     
     return summary
 
+# batch size is 4 
+train_loader = data_loader(train_data, 4)
+valid_loader = data_loader(val_data, 4)
 
-if __name__ == '__main__':
-
-    # batch size is 4 
-    train_loader = data_loader(train_data, 4)
-    valid_loader = data_loader(val_data, 4)
-
-    # summary get all info about performance
-    summary = training_model(nb_epochs = 20, train_dataloader = train_loader, val_dataloader = valid_loader, patience = 5)
-    with open('summary.pickle', 'wb') as handle:
-        pickle.dump(summary, handle, protocol=pickle.HIGHEST_PROTOCOL)
+# summary get all info about performance
+summary = training_model(nb_epochs = 10, train_dataloader = train_loader, val_dataloader = valid_loader, patience = 5)
+with open('summary.pickle', 'wb') as handle:
+    pickle.dump(summary, handle, protocol=pickle.HIGHEST_PROTOCOL)
