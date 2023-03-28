@@ -112,7 +112,7 @@ def validation(validation_loader, model):
 
             # adding to list
             fin_targets.extend(targets.cpu().detach().numpy().tolist())
-            fin_outputs.extend(torch.sigmoid(output).cpu().detach().numpy().tolist())
+            fin_outputs.extend(output.cpu().detach().numpy().tolist())
 
             # add the loss to the running loss
             running_loss+=loss.item()
