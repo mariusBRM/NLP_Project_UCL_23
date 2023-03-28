@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score
+import torch.optim.lr_scheduler as lr_scheduler
 
 def preprocessing(embedding):
     """
@@ -16,6 +17,7 @@ def preprocessing(embedding):
     l = embedding.replace('\n','') #remove '\n
     l = l.replace(' ','') #remove any space
     l = l.replace(',grad_fn=<SelectBackward0>','') #remove grad_fn=<SelectBackward0>
+    l = l.replace(",device='cuda:0'",'')
     l1 = l[7:] #remove tensor(
     l2 = l1[:-1] #remove )
     return torch.tensor(eval(l2)) #get the list inside the string and convert it into torch.tensor
@@ -26,10 +28,11 @@ class Net(nn.Module):
     def __init__(self,len_input_layer, len_output_layer, apply_dropout=False):
         super().__init__()
         
-        self.fc1 = nn.Linear(len_input_layer,568)
-        self.fc2 = nn.Linear(568, 366)
-        self.fc3 = nn.Linear(366, 124)
-        self.fc4 = nn.Linear(124,len_output_layer)
+        self.fc1 = nn.Linear(len_input_layer,684)
+        self.fc2 = nn.Linear(684, 536)
+        self.fc3 = nn.Linear(536, 498)
+        self.fc4 = nn.Linear(498, 124)
+        self.fc5 = nn.Linear(124,len_output_layer)
         self.apply_dropout = apply_dropout
         self.dropout = nn.Dropout(p=0.5)
 
@@ -44,6 +47,9 @@ class Net(nn.Module):
         if self.apply_dropout:
             x = self.dropout(x)
         x = F.relu(self.fc4(x))
+        if self.apply_dropout:
+            x = self.dropout(x)
+        x = F.relu(self.fc5(x))
         
         
         return x
@@ -83,10 +89,13 @@ def training_model(nb_epochs, train_dataloader, val_dataloader, model, optimizer
     This function trains the model on training data
     """
 
+    
+
     best_val_loss = np.inf
 
     for epoch in range(nb_epochs):
 
+        
         model.train()
         running_loss = 0
         for j, data in enumerate(train_dataloader, 0):
@@ -124,6 +133,8 @@ def training_model(nb_epochs, train_dataloader, val_dataloader, model, optimizer
             if pat == patience:
                 print("Early Stopping: Validation Loss did not decrease for", patience, "epochs.")
                 break
+
+        
         
         print("\n")
     torch.save(dict_model, 'classification_no_fine_tuning.pt')
@@ -132,66 +143,56 @@ def training_model(nb_epochs, train_dataloader, val_dataloader, model, optimizer
 
 if __name__ == '__main__':
 
-    
-    #Preprocessing of the data
-    df = pd.read_csv("../../../data/hs_sentence_embeddings_no_fine_tuning.csv")
+    ##collect data
+    df_train = pd.read_csv("../../../data/sentence_embeddings_no_fine_tuning_train.csv")
+    embeddings_train = df_train["embedding"].apply(lambda x : preprocessing(x))
+    labels_train = df_train["labels"].apply(lambda x : preprocessing(x))
 
-    
-    all_embeddings = df["embedding"].apply(lambda x : preprocessing(x)) 
-    all_labels = df["labels"].apply(lambda x : preprocessing(x)) 
-    
-    assert all_embeddings.shape[0] == all_labels.shape[0]
+    df_val = pd.read_csv("../../../data/sentence_embeddings_no_fine_tuning_val.csv")
+    embeddings_val = df_val["embedding"].apply(lambda x : preprocessing(x))
+    labels_val = df_val["labels"].apply(lambda x : preprocessing(x))
 
-    all_embeddings = all_embeddings.to_list()
-    all_labels = all_labels.to_list()
+    df_test = pd.read_csv("../../../data/sentence_embeddings_no_fine_tuning_test.csv")
+    embeddings_test = df_test["embedding"].apply(lambda x : preprocessing(x))
+    labels_test = df_test["labels"].apply(lambda x : preprocessing(x))
 
-    batch_size = 80
+    batch_size = 40
 
-    split = int(df.shape[0]*0.8)
+    embeddings_train = torch.stack(embeddings_train.to_list())
+    labels_train = torch.stack(labels_train.to_list())
 
-    #development data correspond to 80% of the original dataset
-    dev_data = all_embeddings[:split]
-    dev_labels = all_labels[:split]
-    assert len(dev_data) == len(dev_labels)
+    embeddings_val = torch.stack(embeddings_val.to_list())
+    labels_val = torch.stack(labels_val.to_list())
 
-    split_dev = int(len(dev_data)*0.9)
-    # train data is 90% of development data
-    train_data = torch.stack(dev_data[:split_dev])
-    train_labels = torch.stack(dev_labels[:split_dev])
-    assert len(train_data) == len(train_labels)
-    train_dataset = TensorDataset(train_data, train_labels)
-    train_dataloader = DataLoader(train_dataset, batch_size, shuffle=True)
+    embeddings_test = torch.stack(embeddings_test.to_list())
+    labels_test = torch.stack(labels_test.to_list())
 
-    # validation data is 10% of development data
-    val_data = torch.stack(dev_data[split_dev:])
-    val_labels = torch.stack(dev_labels[split_dev:])
-    assert len(val_data) == len(val_labels)
-    val_dataset = TensorDataset(val_data, val_labels)
-    val_dataloader = DataLoader(val_dataset, batch_size, shuffle=False)
 
-    #test data correspond to 20% of the original dataset
-    test_data = torch.stack(all_embeddings[split:])
-    test_labels = torch.stack(all_labels[split:])
-    assert len(test_data) == len(test_labels)
-    test_dataset = TensorDataset(test_data, test_labels)
-    test_dataloader = DataLoader(test_dataset, batch_size, shuffle=False)
+    train_dataset = TensorDataset(embeddings_train, labels_train)
+    train_dataloader = DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
+
+    val_dataset = TensorDataset(embeddings_val, labels_val)
+    val_dataloader = DataLoader(val_dataset, batch_size = batch_size, shuffle = True)
+
+    test_dataset = TensorDataset(embeddings_test, labels_test)
+    test_dataloader = DataLoader(test_dataset, batch_size = batch_size, shuffle = True)
 
 
     ## training
 
-    nb_epochs = 500
-    patience = 10
+    nb_epochs = 1000
+    patience = 35
     model = Net(768,8,apply_dropout=False)
-    weights = 1 / (torch.sqrt(torch.unique(torch.tensor(all_labels), return_counts = True)[1]))
-    criterion = nn.CrossEntropyLoss(weight = weights)
-    optimizer = optim.SGD(model.parameters(), lr=0.001)
-    # optim.Adam(model.parameters(), lr=0.001)
-    # optim.AdamW(model.parameters(), lr=0.001)
     
-
+    weights = 1 / (torch.sqrt(torch.unique(labels_train, return_counts = True)[1]))
+    criterion = nn.CrossEntropyLoss(weight = weights)
+    
+    optimizer = optim.SGD(model.parameters(), lr=0.001)
+    
     training_model(nb_epochs, train_dataloader, val_dataloader, model, optimizer, criterion, patience)
 
-    # testing
+
+    ## testing
     print("\n--------------------------------------------------------------------------------------\n")
     train_loss, train_acc, train_macro_f1 = compute_metrics(train_dataloader,model,criterion)
     print("Metrics on training data : CE loss = {:.5f} | acc = {:.2f}% | macro-F1 = {:.4f}".format(train_loss, train_acc, train_macro_f1),"\n")
