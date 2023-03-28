@@ -8,6 +8,7 @@ import transformers
 from sklearn.metrics import accuracy_score,f1_score
 import numpy as np
 from tokenize_B import tokenize_BERT
+import pickle as pkl
 
 # Custom the data for our need
 class HateSpeechData(Dataset):
@@ -33,9 +34,10 @@ class HateSpeechData(Dataset):
         return len(self.X[1])
     
 class BERTForFineTuningtWithPooling(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, is_pooled):
         super(BERTForFineTuningtWithPooling, self).__init__()
         # first layer is the bert
+        self.is_pooled = is_pooled
         self.l1 = transformers.BertModel.from_pretrained('bert-base-uncased', output_hidden_states = True)
         # apply a dropout
         self.l2 = torch.nn.Dropout(0.3)
@@ -43,10 +45,14 @@ class BERTForFineTuningtWithPooling(torch.nn.Module):
     
     def forward(self, ids, mask):
         outputs = self.l1(ids, attention_mask=mask)
-        pooled_output = outputs[1]
+        if self.is_pooled == True:
+            pooled_output = outputs[1]
+        else:
+            pooled_output = torch.mean(outputs.last_hidden_state, dim=1)
         output_2 = self.l2(pooled_output)
         output = self.l3(output_2)
-        return outputs.hidden_states, output
+
+        return pooled_output, output
     
 # import + preprocess the data
 def preprocessing(tuple):     
@@ -92,9 +98,9 @@ def test(model_path, testloader):
     # list containing all the targets and outputs
     targets=[]
     outputs=[]
-
-    # load the model
-    model = BERTForFineTuningtWithPooling()
+    embeddings = []
+    # load the model need to put either True or false !! 
+    model = BERTForFineTuningtWithPooling(is_pooled=True)
     model.load_state_dict(torch.load(model_path))
     model.to(device)
     
@@ -107,17 +113,19 @@ def test(model_path, testloader):
             attention_mask = data['attention_mask'].to(device, dtype = torch.long)
             labels = data['labels'].to(device, dtype = torch.float)
 
-            _, output = model.forward(ids, attention_mask)
+            embedding, output = model.forward(ids, attention_mask)
             # adding to list
             targets.extend(labels.cpu().detach().numpy().tolist())
             outputs.extend(output.cpu().detach().numpy().tolist())
+            embeddings.extend(embedding.cpu().detach().numpy().tolist())
     
     # get the prediction
     outputs = get_class(outputs)
     outputs = np.array(outputs)
     targets = np.array(targets)
+    embeddings = np.array(embeddings)
     
-    return outputs, targets
+    return outputs, targets, embeddings
 
 def count_elements_per_class(labels):
     num_classes = labels.shape[1]
@@ -190,7 +198,7 @@ def report(outputs, targets):
 
 def testing_pipeline(model_path, testloader, path_to_save_metrics):
     # test the results
-    outputs, targets = test(model_path, testloader)
+    outputs, targets, embeddings = test(model_path, testloader)
 
     # calculate the info
     info = report(outputs, targets)
@@ -199,11 +207,16 @@ def testing_pipeline(model_path, testloader, path_to_save_metrics):
     df = pd.DataFrame(info)
     df.to_csv(path_to_save_metrics)
 
+    with open('embeddings.pickle', 'wb') as handle:
+        pkl.dump(embeddings, handle, protocol=pkl.HIGHEST_PROTOCOL)
+
+
+
 
 if __name__=="__main__":
 
-    model_path = '...'
-    path_to_save = '...'
+    model_path = 'model/Fine_Tuned_Bert.pt'
+    path_to_save = 'metricsFineTuning.csv'
     # load the datasets
     train_data, val_data, test_data = tokenize_BERT()
 
