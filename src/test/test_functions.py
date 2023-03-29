@@ -56,6 +56,15 @@ def report(outputs, targets):
     # calculate the f1_scores
     f1_scores, macro_f1 = calculate_macro_f1(outputs, targets)
 
+    avg_info = {'avg_class_acc': np.mean(class_accuracies),
+                'overall_acc': overall_accuracy,
+                "macro_F1": macro_f1
+                }
+    
+    # save to csv
+    df_avg_info = pd.DataFrame(avg_info, index=[0])
+    df_avg_info.to_csv('avg_metrics.csv')
+
     # counting the number of sample per class
     sample_per_class = count_elements_per_class(targets)
 
