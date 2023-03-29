@@ -80,7 +80,7 @@ class BERTForFineTuningtWithPooling(torch.nn.Module):
     
     def forward(self, ids, mask):
         outputs = self.l1(ids, attention_mask=mask)
-        pooled_output = torch.mean(outputs.last_hidden_state, dim=1)
+        pooled_output = outputs[1] # torch.mean(outputs.last_hidden_state, dim=1)
         output_2 = self.l2(pooled_output)
         output = self.l3(output_2)
         return outputs.hidden_states, output
