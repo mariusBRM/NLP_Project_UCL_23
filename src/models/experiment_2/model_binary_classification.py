@@ -190,7 +190,7 @@ def training_model(nb_epochs, train_dataloader, val_dataloader, patience):
 
             report_epoch['valid_loss'] = val_loss
             report_epoch['valid_accuracy'] = accuracy_score(targets, outputs)
-            report_epoch['valid_f1_macro'] = f1_score(targets, outputs, average='macro')
+            report_epoch['valid_f1_macro'] = f1_score(targets, outputs, average='binary')
             print(f"Epoch {epoch+1}: train BCE loss = {running_loss}", 
                   f"|| Valid: BCE loss = {val_loss}   acc = {report_epoch['valid_accuracy']}   macro-F1 = {report_epoch['valid_f1_macro']}")
             
