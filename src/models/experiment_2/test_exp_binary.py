@@ -103,7 +103,7 @@ if __name__ == '__main__':
     # batch size is 4 
     test_loader = data_loader(test_data, 4)
 
-    model_path = ''
+    model_path = 'Fine_Tuned_Bert_binary.pt'
     path_to_save_avg_metrics = 'binary_metrics'
     path_to_save_embeddings = 'binary_embeddings'
 

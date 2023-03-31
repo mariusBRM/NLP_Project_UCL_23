@@ -38,6 +38,7 @@ class HateSpeechData(Dataset):
         inputs_id = self.X[0][index]
         attention_mask = self.X[1][index]
         label = self.y[index]
+        id = self.id[index]
         
         if label !=0:
             label = torch.tensor(1)
@@ -46,7 +47,8 @@ class HateSpeechData(Dataset):
         item = {
             'input_ids':inputs_id,
             'attention_mask':attention_mask,
-            'labels':label
+            'labels':label,
+            'comment_id': id
         }
         return item
     
@@ -64,7 +66,7 @@ def data_loader(data,batch_size):
     dataset = HateSpeechData(data)
 
     # dataloader
-    dataloader_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+    dataloader_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
     return dataloader_loader
 
