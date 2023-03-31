@@ -4,7 +4,7 @@ import pandas as pd
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 import transformers
-from sklearn.metrics import f1_score, accuracy_score, classification_report
+from sklearn.metrics import f1_score, accuracy_score, classification_report, precision_score, recall_score
 import numpy as np
 from tokenize_BERT import tokenize_BERT
 import pickle
@@ -79,24 +79,32 @@ def calculate_metrics(predicted_labels, true_labels):
     overall_acc = accuracy_score(true_labels, predicted_labels)
     
     f1_scores = [0] * n_classes
+    precision_scores = [0] * n_classes
+    recall_scores = [0] * n_classes
     dict_report = classification_report(true_labels, predicted_labels, output_dict=True)
     for i in range(n_classes):
         f1_scores[i] = dict_report[str(i)+'.0']['f1-score']
+        precision_scores[i] = dict_report[str(i)+'.0']['precision']
+        recall_scores[i] = dict_report[str(i)+'.0']['recall']
     
     macro_f1 = f1_score(true_labels, predicted_labels, average='macro')
+    macro_precision = precision_score(true_labels, predicted_labels, average='macro')
+    macro_recall = recall_score(true_labels, predicted_labels, average='macro')
         
-    return counts, class_acc, f1_scores, average_class_acc, overall_acc, macro_f1
+    return counts, class_acc, f1_scores, precision_scores, recall_scores, average_class_acc, overall_acc, macro_f1, macro_precision, macro_recall
 
 
 def testing_pipeline(model_path, testloader, path_to_save_metrics, path_to_save_avg_metrics,  path_to_save_embeddings):
     # test the results
     outputs, targets, embeddings = test(model_path, testloader)
 
-    counts, class_acc, f1_scores, average_class_acc, overall_acc, macro_f1 = calculate_metrics(outputs, targets)
+    counts, class_acc, f1_scores, precision_scores, recall_scores, average_class_acc, overall_acc, macro_f1, macro_precision, macro_recall = calculate_metrics(outputs, targets)
 
     avg_info = {'avg_class_acc': average_class_acc,
                 'overall_acc': overall_acc,
-                "macro_F1": macro_f1
+                'macro_F1': macro_f1,
+                'macro_precision': macro_precision,
+                'macro_recall': macro_recall
                 }
     # save to csv
     df_avg_info = pd.DataFrame(avg_info, index=[0])
@@ -109,7 +117,9 @@ def testing_pipeline(model_path, testloader, path_to_save_metrics, path_to_save_
         info = {
             'num_sample': counts[i],
             'accuracy': class_acc[i],
-            'f1_score': f1_scores[i]
+            'f1_score': f1_scores[i],
+            'precision_score': precision_scores[i],
+            'recall_scores': recall_scores[i]
             }
         report.append(info)
     
