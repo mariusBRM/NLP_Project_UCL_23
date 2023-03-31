@@ -1,12 +1,18 @@
-
-from sklearn.metrics import f1_score
-from torch.utils.data import TensorDataset, DataLoader
-#import sys
-#sys.path.append("../models/no_fine_tuning")
-from model import Net, preprocessing
-import torch
+import pandas as pd
 import numpy as np
 import pandas as pd
+import torch
+from torch.utils.data import TensorDataset, DataLoader
+import transformers
+from sklearn.metrics import f1_score, accuracy_score, classification_report,precision_score, recall_score
+import numpy as np
+from tokenize_BERT import tokenize_BERT
+import pickle
+from model import Net, preprocessing
+
+
+    
+
 
 def test(model_path, testloader):
 
@@ -42,119 +48,93 @@ def test(model_path, testloader):
     targets = torch.cat(targets, dim=0)
     outputs = torch.cat(outputs, dim=0)
     
-    identity = np.eye(8)
-    outputs = identity[outputs]
-    targets = identity[targets]
     
     return outputs, targets
 
 
+def calculate_metrics(predicted_labels, true_labels):
 
+    _, counts = np.unique(true_labels, return_counts=True)
 
-
-
-def count_elements_per_class(labels):
-    
-    num_classes = labels.shape[1]
-    class_counts = [0] * num_classes
-    
-    for i in range(num_classes):
-        class_counts[i] = sum(labels[:, i])
+    n_classes = len(counts)
+    class_acc = [0] * n_classes
+    for i in range(n_classes):
         
-    return class_counts
+        tp = torch.sum((predicted_labels==i) & (true_labels==i))
+        class_acc[i] = tp / counts[i]
 
-def calculate_accuracy(predicted_labels, true_labels):
+    average_class_acc = np.mean(class_acc)
+    overall_acc = accuracy_score(true_labels, predicted_labels)
+    
+    f1_scores = [0] * n_classes
+    dict_report = classification_report(true_labels, predicted_labels, output_dict=True)
+    for i in range(n_classes):
+        f1_scores[i] = dict_report[str(i)]['f1-score']
+    
+    macro_f1 = f1_score(true_labels, predicted_labels, average='macro')
 
-    num_classes = true_labels.shape[1]
-    num_samples = true_labels.shape[0]
-    class_counts = count_elements_per_class(true_labels)
-    class_accuracies = [0] * num_classes
-    true_positives = 0
+    precisions = [0] * n_classes
+    for i in range(n_classes):
+        precisions[i] = dict_report[str(i)]['precision']
+
+    avg_precision = precision_score(true_labels, predicted_labels, average='macro')
+
+    recalls = [0] * n_classes
+    for i in range(n_classes):
+        recalls[i] = dict_report[str(i)]['recall']
     
-    # calculate accuracy for each class
-    for i in range(num_classes):
-        true_positives += sum((predicted_labels[:, i] == 1) & (true_labels[:, i] == 1))
-        class_accuracies[i] = sum((predicted_labels[:, i] == 1) & (true_labels[:, i] == 1)) / class_counts[i]
-    
-    # calculate the overall accuracy
-    overall_accuracy = true_positives / num_samples
+    avg_recall = recall_score(true_labels, predicted_labels, average='macro')
         
-    return class_accuracies, overall_accuracy
+    return counts, class_acc, f1_scores, average_class_acc, overall_acc, macro_f1, precisions, avg_precision, recalls, avg_recall
 
-def calculate_macro_f1(predicted_labels, true_labels):
 
-    num_classes = true_labels.shape[1]
-    f1_scores = []
-    
-    # calculate F1 score for each class
-    for i in range(num_classes):
-        f1 = f1_score(true_labels[:, i], predicted_labels[:, i])
-        f1_scores.append(f1)
-        
-    # calculate macro F1 score
-    macro_f1 = sum(f1_scores) / num_classes
-    
-    return f1_scores, macro_f1
+def testing_pipeline(model_path, testloader, path_to_save_metrics, path_to_save_avg_metrics):
+    # test the results
+    outputs, targets = test(model_path, testloader)
 
-def report(outputs, targets):
+    counts, class_acc, f1_scores, average_class_acc, overall_acc, macro_f1, precisions, avg_precision, recalls, avg_recall = calculate_metrics(outputs, targets)
 
-    # calculate the accuracies
-    class_accuracies, overall_accuracy = calculate_accuracy(outputs, targets)
-
-    # calculate the f1_scores
-    f1_scores, macro_f1 = calculate_macro_f1(outputs, targets)
-
-    avg_info = {'avg_class_acc': np.mean(class_accuracies),
-                'overall_acc': overall_accuracy,
-                "macro_F1": macro_f1
+    avg_info = {'num_sample': targets.shape[0],
+                'avg_class_acc': average_class_acc,
+                'overall_acc': overall_acc,
+                "macro_F1": macro_f1,
+                'macro_precison':avg_precision,
+                'macro_recall': avg_recall
                 }
-    
     # save to csv
     df_avg_info = pd.DataFrame(avg_info, index=[0])
-    df_avg_info.to_csv('avg_metrics_no_fine_tuning.csv')
+    df_avg_info.to_csv(path_to_save_avg_metrics)
 
-    # counting the number of sample per class
-    sample_per_class = count_elements_per_class(targets)
 
     report = []
 
-    for i in range(targets.shape[1]):
+    for i in range(len(counts)):
         info = {
-            'num_sample': sample_per_class[i],
-            'accuracy': class_accuracies[i],
-            'f1_score': f1_scores[i]
-        }
+            'num_sample': counts[i],
+            'accuracy': class_acc[i],
+            'f1_score': f1_scores[i], 
+            'precision' : precisions[i],
+            'recall':recalls[i]
+            }
         report.append(info)
     
     overall_info = {
-        'num_sample': targets.shape[0],
-        'accuracy' : overall_accuracy, 
-        'f1_score' : macro_f1
-    }
+        
+        'accuracy' : overall_acc, 
+        'f1_score' : macro_f1,
+        }
     report.append(overall_info)
 
-    return report
-
-def get_results_on_csv(path_to_save_metrics, outputs, targets):
-    
-    # calculate the info
-    info = report(outputs, targets)
-
     # save to csv
-    df = pd.DataFrame(info)
+    df = pd.DataFrame(report)
     df.to_csv(path_to_save_metrics)
 
 
 
 
+if __name__=="__main__":
 
-
-
-
-
-
-
-if __name__ == '__main__': 
+    # load the test data
 
     df_test = pd.read_csv("../../../data/sentence_embeddings_no_fine_tuning_test.csv")
     embeddings_test = df_test["embedding"].apply(lambda x : preprocessing(x))
@@ -168,8 +148,9 @@ if __name__ == '__main__':
     test_dataset = TensorDataset(embeddings_test, labels_test)
     test_dataloader = DataLoader(test_dataset, batch_size = batch_size, shuffle = True)
 
-    outputs, targets = test("./classification_no_fine_tuning.pt", test_dataloader)
-
-    get_results_on_csv("./metrics_no_fine_tuning.csv", outputs, targets)
-
-
+    model_path = 'classification_no_fine_tuning.pt'
+    path_to_save_metrics = 'metrics_no_fineTuning.csv'
+    path_to_save_avg_metrics = 'avg_metrics_no_fineTuning.csv'
+    
+    
+    testing_pipeline(model_path=model_path, testloader=test_dataloader, path_to_save_metrics=path_to_save_metrics, path_to_save_avg_metrics=path_to_save_avg_metrics)
