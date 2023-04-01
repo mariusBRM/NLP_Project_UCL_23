@@ -2,105 +2,42 @@ import pandas as pd
 import numpy as np
 import pandas as pd
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import TensorDataset, DataLoader
 import transformers
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, accuracy_score, classification_report, precision_score, recall_score
 import numpy as np
-import sys
 from tokenize_BERT import tokenize_BERT
 import pickle
 
-# Custom the data for our need
-class HateSpeechData(Dataset):
-    def __init__(self, X):
-        self.X = (X[1], X[2])
-        self.y = X[3]
-        self.id = X[0]
-        
-    def __getitem__(self, index):
-        # get the item out of the tuple
-        inputs_id = self.X[0][index]
-        attention_mask = self.X[1][index]
-        label = self.y[index]
-        # create dictionnary
-        item = {
-            'input_ids':inputs_id,
-            'attention_mask':attention_mask,
-            'labels':label
-        }
-        return item
-    
-    def __len__(self):
-        return len(self.X[1])
-    
+
 class BERTForFineTuningtWithPooling(torch.nn.Module):
-    def __init__(self, is_pooled):
+    def __init__(self):
         super(BERTForFineTuningtWithPooling, self).__init__()
         # first layer is the bert
-        self.is_pooled = is_pooled
-        self.l1 = transformers.BertModel.from_pretrained('bert-base-uncased', output_hidden_states = True)
+        self.bert = transformers.BertModel.from_pretrained('bert-base-uncased', output_hidden_states = False)
         # apply a dropout
-        self.l2 = torch.nn.Dropout(0.3)
-        self.l3 = torch.nn.Linear(768, 8)
+        self.dropout = torch.nn.Dropout(0.1)
+        self.linear = torch.nn.Linear(768, 8)
     
     def forward(self, ids, mask):
-        outputs = self.l1(ids, attention_mask=mask)
-        if self.is_pooled == True:
-            pooled_output = outputs[1]
-        else:
-            pooled_output = torch.mean(outputs.last_hidden_state, dim=1)
-        output_2 = self.l2(pooled_output)
-        output = self.l3(output_2)
-
-        return pooled_output, output
+        outputs = self.bert(input_ids=ids, attention_mask=mask)
+        pooler_output = outputs[1] # torch.mean(outputs.last_hidden_state, dim=1)
+        out = self.dropout(pooler_output)
+        out = self.linear(out)
+        return out, pooler_output
     
-# import + preprocess the data
-def preprocessing(tuple):     
-    # changing labels 0,...,7 to one-hot encoded list
-    labels = tuple[3]
-    l = []
-    for i in range(len(labels)):
-        list_class = [0] * 8
-        list_class[int(labels[i])] = 1
-        l.append(list_class)
-        
-    new_tuple = (tuple[0], tuple[1], tuple[2], torch.tensor(l))
-    return new_tuple
 
-# Dataloader
-def data_loader(data,batch_size):
-    
-    # preprocessing
-    data = preprocessing(data)
-
-    # Map style for Dataloader
-    dataset = HateSpeechData(data)
-
-    # dataloader
-    dataloader_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-
-    return dataloader_loader
-
-def get_class(output):
-    l = []
-    for pred in output:
-        class_pred = [0] * 8
-        idx = np.argmax(pred)
-        class_pred[idx] = 1.0
-        l.append(class_pred)
-    return l
-
-def test(model_path, testloader, is_pooled):
+def test(model_path, testloader):
 
     # set the device
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # list containing all the targets and outputs
-    targets=[]
-    outputs=[]
+    targets = []
+    outputs = []
     embeddings = []
-    # load the model need to put either True or false !! 
-    model = BERTForFineTuningtWithPooling(is_pooled=is_pooled)
+
+    model = BERTForFineTuningtWithPooling()
     model.load_state_dict(torch.load(model_path))
     model.to(device)
     
@@ -109,111 +46,92 @@ def test(model_path, testloader, is_pooled):
     with torch.no_grad():
         for data in testloader:
 
-            ids = data['input_ids'].to(device, dtype = torch.long)
-            attention_mask = data['attention_mask'].to(device, dtype = torch.long)
-            labels = data['labels'].to(device, dtype = torch.float)
+            ids = data[0].to(device, dtype = torch.long)
+            attention_mask = data[1].to(device, dtype = torch.long)
+            labels = data[2].to(device, dtype = torch.float)
 
-            embedding, output = model.forward(ids, attention_mask)
+            output, embedding = model.forward(ids, attention_mask)
+            _, predicted = torch.max(output, 1)  
             # adding to list
             targets.extend(labels.cpu().detach().numpy().tolist())
-            outputs.extend(output.cpu().detach().numpy().tolist())
+            outputs.extend(predicted.cpu().detach().numpy().tolist())
             embeddings.extend(embedding.cpu().detach().numpy().tolist())
     
     # get the prediction
-    outputs = get_class(outputs)
     outputs = np.array(outputs)
     targets = np.array(targets)
     embeddings = np.array(embeddings)
     
     return outputs, targets, embeddings
 
-def count_elements_per_class(labels):
-    num_classes = labels.shape[1]
-    class_counts = [0] * num_classes
+
+def calculate_metrics(predicted_labels, true_labels):
+
+    _, counts = np.unique(true_labels, return_counts=True)
+
+    n_classes = len(counts)
+    class_acc = [0] * n_classes
+    for i in range(n_classes):
+        tp = np.sum((predicted_labels==i) & (true_labels==i))
+        class_acc[i] = tp / counts[i]
+
+    average_class_acc = np.mean(class_acc)
+    overall_acc = accuracy_score(true_labels, predicted_labels)
     
-    for i in range(num_classes):
-        class_counts[i] = sum(labels[:, i])
+    f1_scores = [0] * n_classes
+    precision_scores = [0] * n_classes
+    recall_scores = [0] * n_classes
+    dict_report = classification_report(true_labels, predicted_labels, output_dict=True)
+    for i in range(n_classes):
+        f1_scores[i] = dict_report[str(i)+'.0']['f1-score']
+        precision_scores[i] = dict_report[str(i)+'.0']['precision']
+        recall_scores[i] = dict_report[str(i)+'.0']['recall']
+    
+    macro_f1 = f1_score(true_labels, predicted_labels, average='macro')
+    macro_precision = precision_score(true_labels, predicted_labels, average='macro')
+    macro_recall = recall_score(true_labels, predicted_labels, average='macro')
         
-    return class_counts
+    return counts, class_acc, f1_scores, precision_scores, recall_scores, average_class_acc, overall_acc, macro_f1, macro_precision, macro_recall
 
-def calculate_accuracy(predicted_labels, true_labels):
-    num_classes = true_labels.shape[1]
-    num_samples = true_labels.shape[0]
-    class_counts = count_elements_per_class(true_labels)
-    class_accuracies = [0] * num_classes
-    true_positives = 0
-    
-    # calculate accuracy for each class
-    for i in range(num_classes):
-        true_positives += sum((predicted_labels[:, i] == 1) & (true_labels[:, i] == 1))
-        class_accuracies[i] = sum((predicted_labels[:, i] == 1) & (true_labels[:, i] == 1)) / class_counts[i]
-    
-    # calculate the overall accuracy
-    overall_accuracy = true_positives / num_samples
-        
-    return class_accuracies, overall_accuracy
 
-def calculate_macro_f1(predicted_labels, true_labels):
-    num_classes = true_labels.shape[1]
-    f1_scores = []
-    
-    # calculate F1 score for each class
-    for i in range(num_classes):
-        f1 = f1_score(true_labels[:, i], predicted_labels[:, i])
-        f1_scores.append(f1)
-        
-    # calculate macro F1 score
-    macro_f1 = sum(f1_scores) / num_classes
-    
-    return f1_scores, macro_f1
+def testing_pipeline(model_path, testloader, path_to_save_metrics, path_to_save_avg_metrics,  path_to_save_embeddings):
+    # test the results
+    outputs, targets, embeddings = test(model_path, testloader)
 
-def report(outputs, targets, path_to_save_avg_metrics):
-    # calculate the accuracies
-    class_accuracies, overall_accuracy = calculate_accuracy(outputs, targets)
+    counts, class_acc, f1_scores, precision_scores, recall_scores, average_class_acc, overall_acc, macro_f1, macro_precision, macro_recall = calculate_metrics(outputs, targets)
 
-    # calculate the f1_scores
-    f1_scores, macro_f1 = calculate_macro_f1(outputs, targets)
-
-    avg_info = {'avg_class_acc': np.mean(class_accuracies),
-                'overall_acc': overall_accuracy,
-                "macro_F1": macro_f1
+    avg_info = {'avg_class_acc': average_class_acc,
+                'overall_acc': overall_acc,
+                'macro_F1': macro_f1,
+                'macro_precision': macro_precision,
+                'macro_recall': macro_recall
                 }
-    
     # save to csv
     df_avg_info = pd.DataFrame(avg_info, index=[0])
     df_avg_info.to_csv(path_to_save_avg_metrics)
 
-    # counting the number of sample per class
-    sample_per_class = count_elements_per_class(targets)
 
     report = []
 
-    for i in range(targets.shape[1]):
+    for i in range(len(counts)):
         info = {
-            'num_sample': sample_per_class[i],
-            'accuracy': class_accuracies[i],
-            'f1_score': f1_scores[i]
-        }
+            'num_sample': counts[i],
+            'accuracy': class_acc[i],
+            'f1_score': f1_scores[i],
+            'precision_score': precision_scores[i],
+            'recall_scores': recall_scores[i]
+            }
         report.append(info)
     
     overall_info = {
         'num_sample': targets.shape[0],
-        'accuracy' : overall_accuracy, 
+        'accuracy' : overall_acc, 
         'f1_score' : macro_f1
-    }
+        }
     report.append(overall_info)
 
-    return report
-
-def testing_pipeline(model_path, testloader, path_to_save_metrics, path_to_save_embeddings, path_to_save_avg_metrics, is_pooled):
-    # test the results
-    outputs, targets, embeddings = test(model_path, testloader, is_pooled)
-
-    # calculate the info
-    info = report(outputs, targets, path_to_save_avg_metrics)
-
     # save to csv
-    df = pd.DataFrame(info)
+    df = pd.DataFrame(report)
     df.to_csv(path_to_save_metrics)
 
     with open(path_to_save_embeddings+'.pickle', 'wb') as handle:
@@ -221,19 +139,16 @@ def testing_pipeline(model_path, testloader, path_to_save_metrics, path_to_save_
 
 
 
-
 if __name__=="__main__":
 
-    # load the datasets
-    train_data, val_data, test_data = tokenize_BERT()
+    # load the test data
+    _, _, test_data = tokenize_BERT()
+    test_dataset = TensorDataset(test_data[1], test_data[2], test_data[3])
+    test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False, num_workers=0)
 
-    # load the testloader
-    testloader = data_loader(test_data, 4)
-
-    for is_pooled, name in zip([True, False], ['Pooled', 'Mean']):
-
-        model_path = name+'_Fine_Tuned_Bert.pt'
-        path_to_save_metrics = 'metrics'+name+'FineTuning.csv'
-        path_to_save_embeddings = name+'_embeddings'
-        path_to_save_avg_metrics = 'avg_metrics'+name+'FineTuning.csv'
-        testing_pipeline(model_path=model_path, testloader=testloader, path_to_save_metrics=path_to_save_metrics, path_to_save_embeddings=path_to_save_embeddings, path_to_save_avg_metrics=path_to_save_avg_metrics, is_pooled=is_pooled)
+    model_path = 'Fine_Tuned_Bert.pt'
+    path_to_save_metrics = 'metrics_FineTuning.csv'
+    path_to_save_avg_metrics = 'avg_metrics_FineTuning.csv'
+    path_to_save_embeddings = 'embeddings_FineTuning'
+    
+    testing_pipeline(model_path=model_path, testloader=test_loader, path_to_save_metrics=path_to_save_metrics, path_to_save_avg_metrics=path_to_save_avg_metrics, path_to_save_embeddings=path_to_save_embeddings)

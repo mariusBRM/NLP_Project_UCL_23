@@ -1,92 +1,30 @@
 import numpy as np
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import TensorDataset, DataLoader
 import transformers
 from sklearn.metrics import accuracy_score,f1_score
 import pickle
 from tokenize_BERT import tokenize_BERT
 
-# import + preprocess the data
-def preprocessing(tuple):     
-    # changing labels 0,...,7 to one-hot encoded list
-    labels = tuple[3]
-    l = []
-    for i in range(len(labels)):
-        list_class = [0] * 8
-        list_class[int(labels[i])] = 1
-        l.append(list_class)
-        
-    new_tuple = (tuple[0], tuple[1], tuple[2], torch.tensor(l))
-    return new_tuple
-
-def get_class(output):
-    l = []
-    for pred in output:
-        class_pred = [0] * 8
-        idx = np.argmax(pred)
-        class_pred[idx] = 1.0
-        l.append(class_pred)
-    return l
-
-train_data, val_data, test_data = tokenize_BERT()
-WEIGHTS = 1 / (torch.sqrt(torch.unique(train_data[3], return_counts = True)[1])).to('cuda')
-
-# Custom the data for our need
-class HateSpeechData(Dataset):
-    def __init__(self, X):
-        self.X = (X[1], X[2])
-        self.y = X[3]
-        self.id = X[0]
-        
-    def __getitem__(self, index):
-        # get the item out of the tuple
-        inputs_id = self.X[0][index]
-        attention_mask = self.X[1][index]
-        label = self.y[index]
-        # create dictionnary
-        item = {
-            'input_ids':inputs_id,
-            'attention_mask':attention_mask,
-            'labels':label
-        }
-        return item
-    
-    def __len__(self):
-        return len(self.X[1])
-    
-
-# Dataloader
-def data_loader(data,batch_size):
-    
-    # preprocessing
-    data = preprocessing(data)
-
-    # Map style for Dataloader
-    dataset = HateSpeechData(data)
-
-    # dataloader
-    dataloader_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-
-    return dataloader_loader
 
 class BERTForFineTuningtWithPooling(torch.nn.Module):
     def __init__(self):
         super(BERTForFineTuningtWithPooling, self).__init__()
         # first layer is the bert
-        self.l1 = transformers.BertModel.from_pretrained('bert-base-uncased', output_hidden_states = True)
+        self.bert = transformers.BertModel.from_pretrained('bert-base-uncased', output_hidden_states = False)
         # apply a dropout
-        self.l2 = torch.nn.Dropout(0.3)
-        self.l3 = torch.nn.Linear(768, 8)
+        self.dropout = torch.nn.Dropout(0.1)
+        self.linear = torch.nn.Linear(768, 8)
     
     def forward(self, ids, mask):
-        outputs = self.l1(ids, attention_mask=mask)
-        pooled_output = torch.mean(outputs.last_hidden_state, dim=1)
-        output_2 = self.l2(pooled_output)
-        output = self.l3(output_2)
-        return outputs.hidden_states, output
+        outputs = self.bert(input_ids=ids, attention_mask=mask)
+        pooler_output = outputs[1] # torch.mean(outputs.last_hidden_state, dim=1)
+        out = self.dropout(pooler_output)
+        out = self.linear(out)
+        return out
 
 def loss_fn(outputs, targets):
-    return torch.nn.BCEWithLogitsLoss(pos_weight=WEIGHTS)(outputs, targets)
+    return torch.nn.CrossEntropyLoss(weight=WEIGHTS)(outputs, targets)
 
 
 def validation(validation_loader, model):
@@ -101,18 +39,20 @@ def validation(validation_loader, model):
     with torch.no_grad():
         for _, data in enumerate(validation_loader, 0):
 
-            ids = data['input_ids'].to(device, dtype = torch.long)
-            mask = data['attention_mask'].to(device, dtype = torch.long)
-            targets = data['labels'].to(device, dtype = torch.float)
+            ids = data[0].to(device, dtype = torch.long)
+            mask = data[1].to(device, dtype = torch.long)
+            targets = data[2].to(device, dtype = torch.long)
             
             # forward
-            _,output = model.forward(ids, mask)
+            output = model.forward(ids, mask)
             # evaluate the loss
             loss = loss_fn(output, targets)
 
+
+            _, predicted = torch.max(output, 1)  
             # adding to list
             fin_targets.extend(targets.cpu().detach().numpy().tolist())
-            fin_outputs.extend(output.cpu().detach().numpy().tolist())
+            fin_outputs.extend(predicted.cpu().detach().numpy().tolist())
 
             # add the loss to the running loss
             running_loss+=loss.item()
@@ -147,14 +87,14 @@ def training_model(nb_epochs, train_dataloader, val_dataloader, patience):
 
         for i, data in enumerate(train_dataloader, 0):
 
-            ids = data['input_ids'].to(device, dtype = torch.long)
-            attention_mask = data['attention_mask'].to(device, dtype = torch.long)
-            labels = data['labels'].to(device, dtype = torch.float)
+            ids = data[0].to(device, dtype = torch.long)
+            attention_mask = data[1].to(device, dtype = torch.long)
+            labels = data[2].to(device, dtype = torch.long)
             
              # initialize the optimizer
             optimizer.zero_grad()
             #forward inputs
-            _, output = model.forward(ids, attention_mask)
+            output = model.forward(ids, attention_mask) 
             # define the loss
             loss = loss_fn(output, labels)
             # backpropagate
@@ -174,9 +114,6 @@ def training_model(nb_epochs, train_dataloader, val_dataloader, patience):
         with torch.no_grad():
 
             outputs, targets, val_loss = validation(validation_loader=val_dataloader, model= model)
-            # getting the predominant class
-            outputs = get_class(outputs)
-            outputs = np.array(outputs)
 
             report_epoch['valid_loss'] = val_loss
             report_epoch['valid_accuracy'] = accuracy_score(targets, outputs)
@@ -208,11 +145,22 @@ def training_model(nb_epochs, train_dataloader, val_dataloader, patience):
     
     return summary
 
-# batch size is 4 
-train_loader = data_loader(train_data, 4)
-valid_loader = data_loader(val_data, 4)
 
-# summary get all info about performance
-summary = training_model(nb_epochs = 10, train_dataloader = train_loader, val_dataloader = valid_loader, patience = 5)
-with open('summary.pickle', 'wb') as handle:
-    pickle.dump(summary, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+if __name__ == '__main__':
+
+    train_data, val_data, _ = tokenize_BERT()
+    WEIGHTS = 1 / (torch.sqrt(torch.unique(train_data[3], return_counts = True)[1])).to('cuda')
+
+
+    # create datasets
+    train_dataset = TensorDataset(train_data[1],train_data[2], train_data[3])
+    val_dataset = TensorDataset(val_data[1], val_data[2], val_data[3])
+    batch_size = 4
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+
+    # summary get all info about performance
+    summary = training_model(nb_epochs = 10, train_dataloader = train_loader, val_dataloader = val_loader, patience = 5)
+    with open('summary.pickle', 'wb') as handle:
+        pickle.dump(summary, handle, protocol=pickle.HIGHEST_PROTOCOL)
