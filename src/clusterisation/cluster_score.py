@@ -6,6 +6,10 @@ from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import seaborn as sns
+import sys
+sys.path.append("../models/no_fine_tuning/")
+from model import preprocessing
+import torch
 
 def load_embeddings(path):
     # Open the pickle file in binary mode
@@ -51,7 +55,8 @@ def calc_silhouette(embeddings, labels, path_to_save_metrics):
     return s_euclid, s_cosine
     
 
-def plots(embeddings, labels, type):
+def plots(embeddings, labels, type, method):
+    ## method = ft (fine_tuning) or nft (no_fine_tuning)
 
     if type == "pca":
         pca = PCA(n_components=2)
@@ -64,28 +69,38 @@ def plots(embeddings, labels, type):
     list_labels = list(map(lambda x: list_targets[int(x-1)], labels))
 
     plt.figure()
-    sns.scatterplot(x=result[:,0], y=result[:,1], hue=list_labels, palette = sns.color_palette())
+    sns.scatterplot(x=result[:,0], y=result[:,1], hue=list_labels, palette = sns.color_palette(n_colors=7))
     plt.legend(title='Hate Speech Target',bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
-    plt.savefig(type+".png", bbox_inches='tight')
+    plt.savefig(type+"_"+method+".png", bbox_inches='tight')
 
 
 
-# fine tuned
+## fine tuned
 embeddings, labels = load_embeddings('../models/experiment_2/embeddings_FineTuning_multiclass_targets.pickle')
 s_euclid_ft, s_cosine_ft = calc_silhouette(embeddings, labels, 'silhouette_fine_tuning')
-plots(embeddings, labels, type='tsne')
-plots(embeddings, labels, type='pca')
+plots(embeddings, labels, type='tsne', method="ft")
+plots(embeddings, labels, type='pca', method="ft")
 
-# # not fine tuned
-# embeddings, labels = load_embeddings('')
-# s_euclid_nft, s_cosine_nft = calc_silhouette(embeddings, labels, '')
-# plots(embeddings, labels)
+## not fine tuned
 
-# avg_info = {'s_euclid_ft': s_euclid_ft,
-#             's_cosine_ft': s_cosine_ft,
-#             's_euclid_nft': s_euclid_nft,
-#             's_cosine_nft': s_cosine_nft
-#             }
-# df_avg_info = pd.DataFrame(avg_info, index=[0])
-# df_avg_info.to_csv('avg_silhouette')
+
+df_test = pd.read_csv("../../data/sentence_embeddings_no_fine_tuning_test.csv")
+embeddings_nft = df_test["embedding"].apply(lambda x : preprocessing(x))
+labels_nft = df_test["labels"].apply(lambda x : preprocessing(x))
+
+embeddings_nft = torch.stack(embeddings_nft.to_list())
+labels_nft = torch.stack(labels_nft.to_list())
+
+
+s_euclid_nft, s_cosine_nft = calc_silhouette(embeddings_nft, labels_nft, 'silhouette_no_fine_tuning')
+plots(embeddings_nft, labels_nft, type='tsne', method="nft")
+plots(embeddings_nft, labels_nft, type='pca', method="nft")
+
+avg_info = {'s_euclid_ft': s_euclid_ft,
+             's_cosine_ft': s_cosine_ft,
+             's_euclid_nft': s_euclid_nft,
+             's_cosine_nft': s_cosine_nft
+             }
+df_avg_info = pd.DataFrame(avg_info, index=[0])
+df_avg_info.to_csv('avg_silhouette')
 
