@@ -146,7 +146,7 @@ def training_model(nb_epochs, train_dataloader, val_dataloader, patience):
         # add performances of the epoch to the overall summary
         summary.append(report_epoch)
 
-    torch.save(dict_model, 'Fine_Tuned_Bert.pt')
+        torch.save(dict_model, 'Fine_Tuned_Bert_epoch_'+str(epoch + 1)+'.pt')
     
     return summary
 
