@@ -69,7 +69,7 @@ def plots(embeddings, labels, type, method):
     list_labels = list(map(lambda x: list_targets[int(x-1)], labels))
 
     plt.figure()
-    sns.scatterplot(x=result[:,0], y=result[:,1], hue=list_labels, palette = sns.color_palette(n_colors=7))
+    sns.scatterplot(x=result[:,0], y=result[:,1], hue=list_labels, palette = sns.color_palette(palette = 'colorblind', n_colors=7))
     plt.legend(title='Hate Speech Target',bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
     plt.savefig(type+"_"+method+".png", bbox_inches='tight')
 
