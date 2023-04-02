@@ -55,31 +55,38 @@ def calc_silhouette(embeddings, labels, path_to_save_metrics):
     return s_euclid, s_cosine
     
 
-def plots(embeddings, labels, type, method):
+def plots(embeddings_ft, labels_ft, embeddings_nft, labels_nft, type):
     ## method = ft (fine_tuning) or nft (no_fine_tuning)
 
     if type == "pca":
         pca = PCA(n_components=2)
-        result = pca.fit_transform(embeddings)
+        result_ft = pca.fit_transform(embeddings_ft)
+        result_nft = pca.fit_transform(embeddings_nft)
     if type == "tsne":
         tsne = TSNE(n_components=2, perplexity=10, learning_rate=300)
-        result = tsne.fit_transform(embeddings)
+        result_ft = tsne.fit_transform(embeddings_ft)
+        result_nft = tsne.fit_transform(embeddings_nft)
 
     list_targets = ['race', 'religion', 'origin', 'gender', 'sexuality', 'age', 'disability']
-    list_labels = list(map(lambda x: list_targets[int(x-1)], labels))
+    list_labels_ft = list(map(lambda x: list_targets[int(x-1)], labels_ft))
+    list_labels_nft = list(map(lambda x: list_targets[int(x-1)], labels_nft))
 
-    plt.figure()
-    sns.scatterplot(x=result[:,0], y=result[:,1], hue=list_labels, palette = sns.color_palette(palette = 'colorblind',n_colors=7))
-    plt.legend(title='Hate Speech Target',bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
-    plt.savefig(type+"_"+method+".png", bbox_inches='tight')
+    fig, axs = plt.subplots(2, figsize=(8,16))
+    sns.scatterplot(x=result_ft[:,0], y=result_ft[:,1], hue=list_labels_ft, palette = sns.color_palette(palette = 'colorblind',n_colors=7), ax=axs[0])
+    axs[0].set_title('Fine-Tuned BERT')
+    axs[0].legend_.remove()
+    sns.scatterplot(x=result_nft[:,0], y=result_nft[:,1], hue=list_labels_nft, palette = sns.color_palette(palette = 'colorblind',n_colors=7), ax=axs[1])
+    axs[1].set_title('Not Fine-Tuned BERT')
+    axs[1].legend_.remove()
+    axs[0].legend(title='Hate Speech Target',bbox_to_anchor=(0.5, 1.1), loc='lower center', borderaxespad=0, ncol=4)
+    fig.savefig(type+".png", bbox_inches='tight')
 
 
 
 ## fine tuned
 embeddings, labels = load_embeddings('../models/experiment_2/embeddings_FineTuning_multiclass_targets.pickle')
 s_euclid_ft, s_cosine_ft = calc_silhouette(embeddings, labels, 'silhouette_fine_tuning')
-plots(embeddings, labels, type='tsne', method="ft")
-plots(embeddings, labels, type='pca', method="ft")
+
 
 ## not fine tuned
 
@@ -93,8 +100,10 @@ labels_nft = torch.stack(labels_nft.to_list())
 
 
 s_euclid_nft, s_cosine_nft = calc_silhouette(embeddings_nft, labels_nft, 'silhouette_no_fine_tuning')
-plots(embeddings_nft, labels_nft, type='tsne', method="nft")
-plots(embeddings_nft, labels_nft, type='pca', method="nft")
+
+
+plots(embeddings_ft=embeddings, labels_ft=labels, embeddings_nft=embeddings_nft, labels_nft=labels_nft, type='pca')
+plots(embeddings_ft=embeddings, labels_ft=labels, embeddings_nft=embeddings_nft, labels_nft=labels_nft, type='tsne')
 
 avg_info = {'s_euclid_ft': s_euclid_ft,
              's_cosine_ft': s_cosine_ft,
