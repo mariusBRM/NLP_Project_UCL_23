@@ -76,7 +76,7 @@ def plots(embeddings_ft, labels_ft, embeddings_nft, labels_nft, type):
     axs[0].set_title('Fine-Tuned BERT')
     axs[0].legend_.remove()
     sns.scatterplot(x=result_nft[:,0], y=result_nft[:,1], hue=list_labels_nft, palette = sns.color_palette(palette = 'colorblind',n_colors=7), ax=axs[1])
-    axs[1].set_title('Pre-Trained BERT')
+    axs[1].set_title('Not Fine-Tuned BERT')
     axs[1].legend_.remove()
     axs[0].legend(title='Hate Speech Target',bbox_to_anchor=(0.5, 1.1), loc='lower center', borderaxespad=0, ncol=4)
     fig.savefig(type+".png", bbox_inches='tight')
