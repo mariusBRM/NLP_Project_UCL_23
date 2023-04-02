@@ -158,9 +158,9 @@ if __name__=="__main__":
     test_dataset = TensorDataset(input_ids_test, attention_mask_test, labels_test)
     test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False, num_workers=0)
 
-    model_path = '/content/drive/MyDrive/epoch1.pt'
-    path_to_save_metrics = '/content/drive/MyDrive/metrics_FineTuning_multiclass_targets.csv'
-    path_to_save_avg_metrics = '/content/drive/MyDrive/avg_metrics_FineTuning_multiclass_targets.csv'
-    path_to_save_embeddings = '/content/drive/MyDrive/embeddings_FineTuning_multiclass_targets'
+    model_path = './Fine_Tuned_Bert_multi_classif_targets.pt'
+    path_to_save_metrics = './metrics_FineTuning_multiclass_targets.csv'
+    path_to_save_avg_metrics = './avg_metrics_FineTuning_multiclass_targets.csv'
+    path_to_save_embeddings = './embeddings_FineTuning_multiclass_targets'
     
     testing_pipeline(model_path=model_path, testloader=test_loader, path_to_save_metrics=path_to_save_metrics, path_to_save_avg_metrics=path_to_save_avg_metrics, path_to_save_embeddings=path_to_save_embeddings)
