@@ -49,8 +49,8 @@ class Net(nn.Module):
         x = F.relu(self.fc4(x))
         if self.apply_dropout:
             x = self.dropout(x)
-        x = F.relu(self.fc5(x))
         
+        x = self.fc5(x)
         
         return x
     

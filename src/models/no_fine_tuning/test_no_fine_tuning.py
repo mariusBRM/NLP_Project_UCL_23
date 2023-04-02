@@ -53,8 +53,7 @@ def test(model_path, testloader):
     # get the prediction
     targets = torch.tensor(targets)
     outputs = torch.tensor(outputs)
-    #targets = torch.cat(targets, dim=0)
-    #outputs = torch.cat(outputs, dim=0)
+    
     
     
     return outputs, targets
@@ -157,8 +156,8 @@ if __name__=="__main__":
     test_dataloader = DataLoader(test_dataset, batch_size = batch_size, shuffle = True)
 
     model_path = './classification_no_fine_tuning.pt'
-    path_to_save_metrics = './metrics_no_fineTuning.csv'
-    path_to_save_avg_metrics = './avg_metrics_no_fineTuning.csv'
+    path_to_save_metrics = './metrics_no_fine_tuning.csv'
+    path_to_save_avg_metrics = './avg_metrics_no_fine_tuning.csv'
     
     
     testing_pipeline(model_path=model_path, testloader=test_dataloader, path_to_save_metrics=path_to_save_metrics, path_to_save_avg_metrics=path_to_save_avg_metrics)
