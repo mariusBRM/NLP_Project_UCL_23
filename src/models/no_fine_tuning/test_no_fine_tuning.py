@@ -13,7 +13,6 @@ from model import Net, preprocessing
 
     
 
-
 def test(model_path, testloader):
 
     # set the device
@@ -34,25 +33,35 @@ def test(model_path, testloader):
         for data in testloader:
 
             inputs, labels = data
-            targets.append(labels)
+            
+
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            #targets.append(labels)
             
             output = model.forward(inputs)
             
             # adding to list
             _,prediction = torch.max(output, 1)
-            outputs.append(prediction)
+            #outputs.append(prediction)
+            targets.extend(labels.cpu().detach().numpy().tolist())
+            outputs.extend(prediction.cpu().detach().numpy().tolist())
 
             
     
     # get the prediction
-    targets = torch.cat(targets, dim=0)
-    outputs = torch.cat(outputs, dim=0)
+    targets = torch.tensor(targets)
+    outputs = torch.tensor(outputs)
+    #targets = torch.cat(targets, dim=0)
+    #outputs = torch.cat(outputs, dim=0)
     
     
     return outputs, targets
 
 
 def calculate_metrics(predicted_labels, true_labels):
+
 
     _, counts = np.unique(true_labels, return_counts=True)
 
@@ -135,7 +144,6 @@ def testing_pipeline(model_path, testloader, path_to_save_metrics, path_to_save_
 if __name__=="__main__":
 
     # load the test data
-
     df_test = pd.read_csv("../../../data/sentence_embeddings_no_fine_tuning_test.csv")
     embeddings_test = df_test["embedding"].apply(lambda x : preprocessing(x))
     labels_test = df_test["labels"].apply(lambda x : preprocessing(x))
@@ -148,9 +156,9 @@ if __name__=="__main__":
     test_dataset = TensorDataset(embeddings_test, labels_test)
     test_dataloader = DataLoader(test_dataset, batch_size = batch_size, shuffle = True)
 
-    model_path = 'classification_no_fine_tuning.pt'
-    path_to_save_metrics = 'metrics_no_fineTuning.csv'
-    path_to_save_avg_metrics = 'avg_metrics_no_fineTuning.csv'
+    model_path = './classification_no_fine_tuning.pt'
+    path_to_save_metrics = './metrics_no_fineTuning.csv'
+    path_to_save_avg_metrics = './avg_metrics_no_fineTuning.csv'
     
     
     testing_pipeline(model_path=model_path, testloader=test_dataloader, path_to_save_metrics=path_to_save_metrics, path_to_save_avg_metrics=path_to_save_avg_metrics)
