@@ -79,20 +79,18 @@ def plots(embeddings_single_ft, labels_single_ft,embeddings_double_ft, labels_do
     list_labels_double_ft = list(map(lambda x: list_targets[int(x-1)], labels_double_ft))
     list_labels_nft = list(map(lambda x: list_targets[int(x-1)], labels_nft))
 
-    fig, axs = plt.subplots(3, figsize=(12,24))
-    sns.scatterplot(x=result_nft[:,0], y=result_nft[:,1], hue=list_labels_nft, palette = sns.color_palette(palette = 'colorblind',n_colors=7), ax=axs[1])
+    fig, axs = plt.subplots(3, figsize=(6,12))
+    sns.scatterplot(x=result_nft[:,0], y=result_nft[:,1], hue=list_labels_nft, hue_order=list_targets, palette = sns.color_palette(palette = 'colorblind',n_colors=7), ax=axs[0])
     axs[0].set_title('Experiment 1')
     axs[0].legend_.remove()
     axs[0].legend(title='Hate Speech Target',bbox_to_anchor=(0.5, 1.1), loc='lower center', borderaxespad=0, ncol=4)
     
-
-
-    sns.scatterplot(x=result_single_ft[:,0], y=result_single_ft[:,1], hue=list_labels_single_ft, palette = sns.color_palette(palette = 'colorblind',n_colors=7), ax=axs[0])
+    sns.scatterplot(x=result_single_ft[:,0], y=result_single_ft[:,1], hue=list_labels_single_ft, hue_order=list_targets, palette = sns.color_palette(palette = 'colorblind',n_colors=7), ax=axs[1])
     axs[1].set_title('Experiment 2')
     axs[1].legend_.remove()
 
     
-    sns.scatterplot(x=result_double_ft[:,0], y=result_double_ft[:,1], hue=list_labels_double_ft, palette = sns.color_palette(palette = 'colorblind',n_colors=7), ax=axs[0])
+    sns.scatterplot(x=result_double_ft[:,0], y=result_double_ft[:,1], hue=list_labels_double_ft, hue_order=list_targets, palette = sns.color_palette(palette = 'colorblind',n_colors=7), ax=axs[2])
     axs[2].set_title('Experiment 3')
     axs[2].legend_.remove()
 
@@ -129,7 +127,6 @@ labels_nft = torch.stack(labels_nft.to_list())
 indexes_label_non_0_nft = np.where(labels_nft != 0)[0]
 embeddings_nft_without_0 =  embeddings_nft[indexes_label_non_0_nft]
 labels_nft_without_0 = labels_nft[indexes_label_non_0_nft]
-
 
 
 s_euclid_nft, s_cosine_nft = calc_silhouette(embeddings_nft_without_0, labels_nft_without_0 , 'silhouette_no_fine_tuning')
