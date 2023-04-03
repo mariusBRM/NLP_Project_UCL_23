@@ -79,7 +79,7 @@ def plots(embeddings_single_ft, labels_single_ft,embeddings_double_ft, labels_do
     list_labels_double_ft = list(map(lambda x: list_targets[int(x-1)], labels_double_ft))
     list_labels_nft = list(map(lambda x: list_targets[int(x-1)], labels_nft))
 
-    fig, axs = plt.subplots(3, figsize=(6,12))
+    fig, axs = plt.subplots(3, figsize=(6,18))
     sns.scatterplot(x=result_nft[:,0], y=result_nft[:,1], hue=list_labels_nft, hue_order=list_targets, palette = sns.color_palette(palette = 'colorblind',n_colors=7), ax=axs[0])
     axs[0].set_title('Experiment 1')
     axs[0].legend_.remove()
