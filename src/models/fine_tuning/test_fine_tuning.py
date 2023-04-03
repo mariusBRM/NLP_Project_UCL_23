@@ -134,8 +134,10 @@ def testing_pipeline(model_path, testloader, path_to_save_metrics, path_to_save_
     df = pd.DataFrame(report)
     df.to_csv(path_to_save_metrics)
 
+    rows_for_file = [(embedding, target ) for embedding, target in zip(embeddings,targets)]
+
     with open(path_to_save_embeddings+'.pickle', 'wb') as handle:
-        pickle.dump(embeddings, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(rows_for_file, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 
