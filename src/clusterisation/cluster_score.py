@@ -142,7 +142,7 @@ plots(embeddings_single_ft=embeddings_single_ft_without_0, labels_single_ft=labe
 avg_info = {'s_euclid_double_ft': s_euclid_double_ft,
              's_cosine_double_ft': s_cosine_double_ft,
              's_euclid_single_ft':s_euclid_single_ft,
-             's_cosine_single_ft':s_euclid_single_ft,
+             's_cosine_single_ft':s_cosine_single_ft,
              's_euclid_nft': s_euclid_nft,
              's_cosine_nft': s_cosine_nft
              }
